@@ -1,3 +1,4 @@
 openrgb-python
 requests
 jsonschema
+python-dotenv

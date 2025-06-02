@@ -1,20 +1,14 @@
-def detect_devices(client):
-    devices = client.devices
-    return devices
+from openrgb.orgb import Device
 
-def configure_led_zone(device, zone_index, color, effect):
-    if zone_index < len(device.leds):
-        led_zone = device.leds[zone_index]
-        led_zone.set_color(color)
-        led_zone.set_effect(effect)
-        return True
-    return False
+from utils.debug_utils import debug_print
 
-def apply_lighting_effects(client, device_configs):
-    for device_name, config in device_configs.items():
-        device = next((d for d in client.devices if d.name == device_name), None)
-        if device:
-            for zone_index, zone_config in enumerate(config['zones']):
-                color = zone_config['color']
-                effect = zone_config['effect']
-                configure_led_zone(device, zone_index, color, effect)
+
+def resize_argb_zones(motherboard: Device, zone_configs):
+    for zone_cfg in zone_configs:
+        idx = zone_cfg.index
+        name = zone_cfg.name
+        led_count = zone_cfg.led_count
+        motherboard.zones[idx].resize(led_count)
+        debug_print(
+            f"Zone: {name}, LEDs: {len(motherboard.zones[idx].leds)} (expected {led_count})"
+        )
