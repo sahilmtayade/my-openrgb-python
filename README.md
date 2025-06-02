@@ -28,6 +28,12 @@ This project provides a Python script to control the RGB lighting of Asiahorse C
    ```
    To run the script on Windows startup, you can create a scheduled task or place a shortcut in the Startup folder.
 
+4. **Configure Environment Variables**  
+   Create a `.env` file in the project root to set environment variables. For example, to enable debug mode:
+   ```
+   DEBUG=1
+   ```
+   You can leave this as is for basic debugging. Additional options may be added in the future.
 ## Usage Guidelines
 - Modify the `src/main.py` file to set your desired lighting effects and colors.
 - Use the `src/utils/openrgb_helper.py` for additional functionality and customization.
