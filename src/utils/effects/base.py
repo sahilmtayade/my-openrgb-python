@@ -1,72 +1,76 @@
 #
 # file: base_effect.py
 #
-from abc import ABC, abstractmethod
 import time
+import numpy as np
+from abc import ABC, abstractmethod
 from openrgb.utils import RGBColor, RGBContainer
+from .color_source import ColorSource  # Import our new class
+
 
 class BaseEffect(ABC):
     """
-    Abstract base class for all lighting effects.
-
-    Each effect is responsible for calculating its own frame of colors and
-    for determining when its animation sequence is logically complete.
+    Abstract base class for effects using a brightness-array architecture.
+    Effects inheriting from this should manipulate `self.brightness_array`.
     """
+
     def __init__(
         self,
         rgb_container: RGBContainer,
-        duration: int | None = None,
+        color_source: ColorSource,
         speed: float = 1.0,
         **kwargs,
     ):
-        """
-        Initializes the base effect.
-
-        Args:
-            rgb_container: The OpenRGB container this effect will generate colors for.
-                           It's used primarily to know the number of LEDs.
-            duration: An optional duration in milliseconds for time-based effects.
-            speed: A multiplier for the effect's speed. Its meaning is defined
-                   by the subclass (e.g., LEDs/sec, cycles/sec).
-            **kwargs: Additional keyword arguments for subclass customization.
-        """
         self.rgb_container = rgb_container
-        self.duration = duration
+        self.color_source = color_source
         self.speed = speed
         self.kwargs = kwargs
-        
+
         self.start_time = time.monotonic()
-        
-        # This flag is critical. Subclasses MUST set this to True when they are done.
+        self.num_leds = len(self.rgb_container.leds)
         self._is_finished = False
 
+        # The core of the new architecture: a numpy array for brightness (Value in HSV)
+        self.brightness_array = np.zeros(self.num_leds, dtype=np.float32)
+
     @abstractmethod
-    def _calculate_next_frame(self) -> list[RGBColor]:
+    def _update_brightness(self):
         """
-        Calculates and returns the list of colors for the current frame.
-
-        This is the core logic of the effect. The implementation of this method
-        in a subclass MUST set `self._is_finished = True` when the effect's
-        logical animation is complete. For indefinite effects, this flag is
-        never set.
-
-        Returns:
-            A list of RGBColor objects representing the next frame.
+        Core logic of the effect. Subclasses must implement this.
+        This method should update the `self.brightness_array` based on time
+        and logic, and set `self._is_finished = True` when complete.
         """
         ...
 
+    def is_finished(self) -> bool:
+        """Returns True if the effect has signaled that it is complete."""
+        return self._is_finished
+
     def calculate_frame(self) -> list[RGBColor]:
         """
-        Public-facing method to get the effect's current frame.
-        This should not be overridden by subclasses.
+        Public-facing method that generates the final RGB frame.
+        1. Calls the subclass logic to update the brightness array.
+        2. Combines brightness with the color source (H, S).
+        3. Converts the final HSV data to a list of RGBColor objects.
+        This should not be overridden.
         """
-        # This method provides a clean separation, allowing for future
-        # potential wrapper logic without changing subclasses.
-        return self._calculate_next_frame()
+        # 1. Update the brightness values
+        self._update_brightness()
 
-    def is_finished(self) -> bool:
-        """
-        Returns True if the effect has signaled that it is complete.
-        This is used by the StageManager to know when to remove the effect.
-        """
-        return self._is_finished
+        # 2. Get Hue and Saturation arrays from the color source
+        hues, sats = self.color_source.get_hs_arrays(self.num_leds)
+
+        # 3. Convert HSV arrays to a list of RGBColor objects for OpenRGB
+        final_colors = []
+        # We loop here because the OpenRGB library expects its own RGBColor object.
+        # All the heavy math is already done vectorized in NumPy. This final
+        # conversion loop is extremely fast and not a performance bottleneck.
+        for h, s, v in zip(hues, sats, self.brightness_array):
+            # Clamp brightness to ensure it's within the valid [0, 1] range
+            v_clamped = max(0.0, min(1.0, v))
+
+            # RGBColor.from_hsv expects H(0-360), S(0-100), V(0-100)
+            rgb = RGBColor.from_hsv(h * 360, s * 100, v_clamped * 100)
+            final_colors.append(rgb)
+
+        return final_colors
