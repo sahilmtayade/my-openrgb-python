@@ -1,54 +1,72 @@
-# Base effect class for all effects
+#
+# file: base_effect.py
+#
 from abc import ABC, abstractmethod
+import time
 from openrgb.utils import RGBColor, RGBContainer
 
-
 class BaseEffect(ABC):
+    """
+    Abstract base class for all lighting effects.
+
+    Each effect is responsible for calculating its own frame of colors and
+    for determining when its animation sequence is logically complete.
+    """
     def __init__(
-        self, rgb_container: RGBContainer, duration: int | None, speed: float, **kwargs
+        self,
+        rgb_container: RGBContainer,
+        duration: int | None = None,
+        speed: float = 1.0,
+        **kwargs,
     ):
         """
-        Initializes the base effect with the specified RGB container, duration, speed, and additional parameters.
+        Initializes the base effect.
 
         Args:
-            rgb_container (RGBContainer): The container managing RGB elements for the effect.
-            duration (int | None): Duration of the effect in milliseconds. If None, the effect has no set duration.
-            speed (float): Speed at which the effect progresses.
-            **kwargs: Additional keyword arguments for effect customization.
+            rgb_container: The OpenRGB container this effect will generate colors for.
+                           It's used primarily to know the number of LEDs.
+            duration: An optional duration in milliseconds for time-based effects.
+            speed: A multiplier for the effect's speed. Its meaning is defined
+                   by the subclass (e.g., LEDs/sec, cycles/sec).
+            **kwargs: Additional keyword arguments for subclass customization.
         """
         self.rgb_container = rgb_container
         self.duration = duration
         self.speed = speed
         self.kwargs = kwargs
-        self.current_frame = 0
+        
+        self.start_time = time.monotonic()
+        
+        # This flag is critical. Subclasses MUST set this to True when they are done.
+        self._is_finished = False
 
     @abstractmethod
     def _calculate_next_frame(self) -> list[RGBColor]:
         """
-        Generate the next frame of the effect.
+        Calculates and returns the list of colors for the current frame.
 
-        :return: A list of RGBColor objects representing the next frame.
+        This is the core logic of the effect. The implementation of this method
+        in a subclass MUST set `self._is_finished = True` when the effect's
+        logical animation is complete. For indefinite effects, this flag is
+        never set.
+
+        Returns:
+            A list of RGBColor objects representing the next frame.
         """
         ...
 
-    @abstractmethod
-    def update(self) -> bool:
+    def calculate_frame(self) -> list[RGBColor]:
         """
-        Updates the RGB container to the next frame of the effect.
-        Calculates the next frame using the effect's logic, sets the new colors on the RGB container,
-        and displays the updated colors. If a duration is specified, increments the current frame count
-        and returns True if the effect has reached its duration; otherwise, returns False.
-        Returns:
-            bool: True if the effect has completed its duration, False otherwise.
+        Public-facing method to get the effect's current frame.
+        This should not be overridden by subclasses.
         """
+        # This method provides a clean separation, allowing for future
+        # potential wrapper logic without changing subclasses.
+        return self._calculate_next_frame()
 
-        next_frame = self._calculate_next_frame()
-        self.rgb_container.set_colors(next_frame)
-        self.rgb_container.show(fast=True)
-
-        if self.duration is not None:
-            self.current_frame += 1
-            if self.current_frame >= self.duration:
-                return True
-
-        return False
+    def is_finished(self) -> bool:
+        """
+        Returns True if the effect has signaled that it is complete.
+        This is used by the StageManager to know when to remove the effect.
+        """
+        return self._is_finished
