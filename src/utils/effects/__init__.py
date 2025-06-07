@@ -4,7 +4,6 @@ from .color_source import (
     ColorSource,
     Gradient,
     ScrollingColorSource,
-    ScrollingPauseColorSource,
     StaticColor,
 )
 from .effect import Effect
@@ -28,5 +27,4 @@ __all__ = [
     "FlickerRamp",
     "FadeToBlack",
     "FadeIn",
-    "ScrollingPauseColorSource",
 ]
