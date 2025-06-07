@@ -6,6 +6,7 @@ import numpy as np
 from .color_source import ColorSource
 from .effect import Effect, EffectOptionsKwargs
 
+
 class FadeIn(Effect):
     """
     An effect that smoothly fades all LEDs from black (off) to full brightness

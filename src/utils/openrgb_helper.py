@@ -72,3 +72,28 @@ def configure_standalone_devices(
             print(f"! ERROR: Could not configure device type '{dev_type.name}': {e}")
 
     return configured_devices
+
+
+def get_motherboard_and_dram_devices(client: OpenRGBClient) -> list[Device]:
+    """
+    Returns all devices of type MOTHERBOARD and DRAM.
+    """
+    devices = []
+    try:
+        devices.extend(client.get_devices_by_type(DeviceType.MOTHERBOARD))
+    except Exception as e:
+        print(f"! ERROR: Could not get MOTHERBOARD devices: {e}")
+    try:
+        devices.extend(client.get_devices_by_type(DeviceType.DRAM))
+    except Exception as e:
+        print(f"! ERROR: Could not get DRAM devices: {e}")
+    return devices
+
+
+if __name__ == "__main__":
+    # Test
+    client = OpenRGBClient()
+    devices = get_motherboard_and_dram_devices(client)
+    print(f"Found {len(devices)} MOTHERBOARD/DRAM devices:")
+    for dev in devices:
+        print(f"- {dev.name} ({dev.type.name})")

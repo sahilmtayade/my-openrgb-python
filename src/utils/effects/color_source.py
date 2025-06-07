@@ -169,7 +169,7 @@ class MultiGradient(ColorSource):
         if num_leds == 0:
             return np.array([]), np.array([]), np.array([])
         if not self.stops:
-            return (np.zeros(num_leds, dtype=np.float32),) * 3
+            return (np.zeros(num_leds, dtype=np.float32),) * 3  # type: ignore
         if len(self.stops) == 1:
             h, s, v = self.stops[0][0]
             return np.full(num_leds, h), np.full(num_leds, s), np.full(num_leds, v)
@@ -308,3 +308,126 @@ class ScrollingColorSource(ColorSource):
             )
 
         return scrolled_hues, scrolled_sats, scrolled_vals
+
+
+class ScrollingPauseColorSource(ColorSource):
+    """
+    A dynamic color source that scrolls another ColorSource's output forward
+    for a specified distance, pauses, and then continues scrolling from its
+    last position.
+    """
+
+    def __init__(
+        self,
+        source: ColorSource,
+        speed: float = 5.0,
+        delay: float = 0.0,
+        pause: float = 1.0,
+        scroll_fraction: float = 1.0,
+        initial_roll_ratio: float = 0.0,
+        reverse: bool = False,
+    ):
+        """
+        Args:
+            source: The ColorSource to use as the base map.
+            speed: The speed of scrolling in "LED positions per second".
+            delay: The time in seconds to wait before the scrolling begins.
+            pause: The time in seconds to pause at the end of each scroll segment.
+            scroll_fraction: The distance to scroll in each segment, measured in
+                             multiples of the device's LED count (e.g., 1.0
+                             scrolls one "screen width" per segment).
+            initial_roll_ratio: A one-time roll of the base color map before
+                                any scrolling begins (0.0 to 1.0).
+            reverse: If True, the final scrolled output will be reversed.
+        """
+        super().__init__(reverse=reverse)
+        self.source = source
+        self.scroll_speed = speed
+        self.delay = delay
+        self.pause = max(0.0, pause)
+        self.scroll_fraction = max(0.0, scroll_fraction)
+        self.initial_roll_ratio = initial_roll_ratio % 1.0
+        self._start_time = time.monotonic()
+        self._base_hues: dict[int, np.ndarray] = {}
+        self._base_sats: dict[int, np.ndarray] = {}
+        self._base_vals: dict[int, np.ndarray] = {}
+
+    def _generate_base_arrays(self, num_leds: int):
+        """Generates a mirrored base map and applies a one-time initial roll."""
+        if num_leds not in self._base_hues:
+            h, s, v = self.source.get_hsv_arrays(num_leds)
+            base_h = np.concatenate((h, np.flip(h)))
+            base_s = np.concatenate((s, np.flip(s)))
+            base_v = np.concatenate((v, np.flip(v)))
+
+            roll_amt = int(len(base_h) * self.initial_roll_ratio)
+            if roll_amt:
+                base_h = np.roll(base_h, roll_amt)
+                base_s = np.roll(base_s, roll_amt)
+                base_v = np.roll(base_v, roll_amt)
+
+            self._base_hues[num_leds] = base_h
+            self._base_sats[num_leds] = base_s
+            self._base_vals[num_leds] = base_v
+
+    def get_hsv_arrays(
+        self, num_leds: int
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if num_leds <= 0:
+            return (np.array([]),) * 3  # type: ignore
+
+        self._generate_base_arrays(num_leds)
+        base_hues = self._base_hues[num_leds]
+        base_sats = self._base_sats[num_leds]
+        base_vals = self._base_vals[num_leds]
+
+        # --- COMPLETELY REBUILT PAUSE/SCROLL LOGIC ---
+
+        # 1. Calculate the duration of one scroll segment (the "on" part of the cycle).
+        #    Handle speed=0 case to avoid division by zero.
+        scroll_distance_per_segment = num_leds * self.scroll_fraction
+        scroll_time_per_segment = (
+            scroll_distance_per_segment / self.scroll_speed
+            if self.scroll_speed > 0
+            else float("inf")
+        )
+
+        # 2. A full cycle is one scroll segment plus one pause.
+        cycle_duration = scroll_time_per_segment + self.pause
+
+        # 3. Calculate the total time elapsed since the animation was supposed to start.
+        time_since_start = max(0, (time.monotonic() - self._start_time) - self.delay)
+
+        # 4. Determine which cycle we are in and how many pauses have *fully completed*.
+        if cycle_duration > 0 and cycle_duration != float("inf"):
+            num_completed_cycles = int(time_since_start / cycle_duration)
+            time_in_current_cycle = time_since_start % cycle_duration
+        else:
+            num_completed_cycles = 0
+            time_in_current_cycle = time_since_start
+
+        # 5. Calculate the total scroll distance from all *completed* cycles.
+        distance_from_past_cycles = num_completed_cycles * scroll_distance_per_segment
+
+        # 6. Calculate the scroll distance within the *current* cycle.
+        #    This is where we "clamp" the motion during the pause.
+        if time_in_current_cycle < scroll_time_per_segment:
+            # We are in the scrolling phase of the current cycle.
+            distance_in_current_cycle = time_in_current_cycle * self.scroll_speed
+        else:
+            # We are in the pause phase, so lock to the end of the segment.
+            distance_in_current_cycle = scroll_distance_per_segment
+
+        # 7. The final offset is the sum of past progress and current progress.
+        total_offset = distance_from_past_cycles + distance_in_current_cycle
+
+        # 8. Use np.roll for robust, wrapping display.
+        offset_int = -int(total_offset)
+        hues = np.roll(base_hues, offset_int)[:num_leds]
+        sats = np.roll(base_sats, offset_int)[:num_leds]
+        vals = np.roll(base_vals, offset_int)[:num_leds]
+
+        if self.reverse:
+            return np.flip(hues), np.flip(sats), np.flip(vals)
+
+        return hues, sats, vals

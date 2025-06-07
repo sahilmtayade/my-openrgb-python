@@ -14,8 +14,9 @@ ocean_bands_gradient = MultiGradient(
 tropical_waters_gradient = MultiGradient(
     [
         ((0.66, 1.0, 1.0), 0.0),  # Start with a vibrant Deep Blue
-        ((0.5, 1.0, 1.0), 0.5),  # Transition to bright Cyan by the 40% mark
-        ((0.33, 1.0, 1.0), 1.0),  # Finish with a bright Green at the end
+        ((0.58, 1.0, 1.0), 0.5),  # NEW: Add an Azure stop halfway to Cyan
+        ((0.5, 1.0, 1.0), 0.7),  # Transition to bright Cyan by the 40% mark
+        ((132 / 360, 1.0, 1.0), 1.0),  # Finish with a bright Green at the end
     ]
 )
 

@@ -29,6 +29,7 @@ from .utils.effects.color_source import (
     Gradient,
     MultiGradient,
     ScrollingColorSource,
+    ScrollingPauseColorSource,
     StaticColor,
 )
 from .utils.openrgb_helper import (
@@ -114,11 +115,16 @@ def run():
     # --- NEW: Create the idle RAM gradient source ---
     ram_idle_gradient = tropical_waters_gradient
 
-    ram_idle_scrolling_color_1 = ScrollingColorSource(
-        source=ram_idle_gradient, speed=5.0
+    ram_idle_scrolling_color_1 = ScrollingPauseColorSource(
+        source=ram_idle_gradient, pause=20, scroll_fraction=1.6, speed=10.0
     )
-    ram_idle_scrolling_color_2 = ScrollingColorSource(
-        source=ram_idle_gradient, speed=5.0, delay=RAM_OFFSET
+    ram_idle_scrolling_color_2 = ScrollingPauseColorSource(
+        source=ram_idle_gradient,
+        speed=10.0,
+        pause=20,
+        scroll_fraction=1.6,
+        delay=RAM_OFFSET,
+        initial_roll_ratio=RAM_OFFSET,
     )
 
     # --- Kick off the sequence ---
