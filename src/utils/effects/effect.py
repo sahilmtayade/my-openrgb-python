@@ -1,15 +1,16 @@
 #
 # file: base_effect.py
 #
-from dataclasses import dataclass
 import time
-from typing import TypedDict, Unpack
-import numpy as np
 from abc import ABC, abstractmethod
-from openrgb.utils import RGBColor, RGBContainer
+from dataclasses import dataclass
+from typing import TypedDict, Unpack
 
 # --- NEW: Import the colour library and our color source abstraction ---
 import colour
+import numpy as np
+from openrgb.utils import RGBColor, RGBContainer
+
 from .color_source import ColorSource
 
 DEFAULT_GAMMA = 2.9
@@ -77,37 +78,37 @@ class Effect(ABC):
 
     def calculate_frame(self) -> list[RGBColor]:
         """
-        Generates the final RGB frame. This version includes dithering to
-        compensate for low-precision hardware.
+        Generates the final RGB frame by combining the effect's brightness
+        mask with the color source's intrinsic HSV values.
         """
         self._update_brightness()
 
-        final_brightness = (
+        effect_brightness = (
             np.flip(self.brightness_array)
             if self.options.reverse
             else self.brightness_array
         )
 
-        # --- DITHERING LOGIC ---
-        # If dithering is enabled, add a small amount of random noise to the
-        # brightness values *before* quantization. This breaks up banding.
         if self.options.dither_strength > 0.0:
-            # Generate uniform random noise in the range [-strength, +strength]
             noise = np.random.uniform(
                 -self.options.dither_strength,
                 self.options.dither_strength,
-                final_brightness.shape,
+                effect_brightness.shape,
             )
-            # Add noise and clip to ensure values stay within the valid 0-1 range
-            final_brightness = np.clip(final_brightness + noise, 0, 1)
-        # --- END DITHERING ---
+            effect_brightness = np.clip(effect_brightness + noise, 0, 1)
 
-        # Apply gamma correction to the brightness values
+        # --- THE CORE CHANGE ---
+        # 1. Get all three HSV arrays from the source
+        hues, sats, source_brightness = self.color_source.get_hsv_arrays(self.num_leds)
+
+        # 2. Multiply the effect's brightness mask with the source's brightness
+        final_brightness = effect_brightness * source_brightness
+
+        # 3. Apply gamma correction to the final combined brightness
         final_brightness = np.power(final_brightness, self.options.gamma)
+        # --- END OF CORE CHANGE ---
 
-        hues, sats = self.color_source.get_hs_arrays(self.num_leds)
         hsv_array = np.dstack((hues, sats, final_brightness))[0]
-
         rgb_float_array = colour.HSV_to_RGB(hsv_array)
         rgb_int_array = (np.clip(rgb_float_array, 0, 1) * 255).astype(np.uint8)
 

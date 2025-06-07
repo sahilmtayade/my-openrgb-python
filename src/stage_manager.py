@@ -98,3 +98,8 @@ class StageManager:
         for device in self.devices:
             device.set_colors(self._canvases[device])
             device.show(fast=True)
+
+    def clear_all_effects(self):
+        """Clears all effects from all devices managed by this StageManager."""
+        for device in self.devices:
+            self.clear_effects(device)

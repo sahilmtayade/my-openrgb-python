@@ -8,6 +8,7 @@ from .color_source import (
 )
 from .effect import Effect
 from .fade import FadeToBlack
+from .fade_in import FadeIn
 from .flicker_ramp import FlickerRamp
 from .liquid_fill import LiquidFill
 from .manual_ramp import ManualBrightnessRamp
@@ -25,4 +26,5 @@ __all__ = [
     "StaticBrightness",
     "FlickerRamp",
     "FadeToBlack",
+    "FadeIn",
 ]
