@@ -2,6 +2,7 @@
 # file: color_source.py
 #
 import time
+
 import numpy as np
 
 # ==============================================================================
@@ -52,19 +53,52 @@ class Gradient(ColorSource):
     The gradient is generated once and cached.
     """
 
-    def __init__(self, start_hsv: tuple[float, float], end_hsv: tuple[float, float]):
+    def __init__(
+        self,
+        start_hsv: tuple[float, float],
+        end_hsv: tuple[float, float],
+        weight: float = 0.5,
+    ):
         """
         Args:
             start_hsv (tuple[float, float]): The starting (Hue, Saturation) from 0.0 to 1.0.
             end_hsv (tuple[float, float]): The ending (Hue, Saturation) from 0.0 to 1.0.
+            weight (float): Where the color change point is, from 0.0 (start) to 1.0 (end). Default is 0.5 (center).
         """
         super().__init__()
         self.start_hue, self.start_sat = start_hsv
         self.end_hue, self.end_sat = end_hsv
+        self.weight = weight
 
     def _generate_arrays(self, num_leds: int) -> tuple[np.ndarray, np.ndarray]:
-        hues = np.linspace(self.start_hue, self.end_hue, num_leds, dtype=np.float32)
-        sats = np.linspace(self.start_sat, self.end_sat, num_leds, dtype=np.float32)
+        # The color change point is at int(weight * (num_leds-1))
+        split = int(self.weight * (num_leds - 1))
+        if split <= 0:
+            # All end color
+            hues = np.full(num_leds, self.end_hue, dtype=np.float32)
+            sats = np.full(num_leds, self.end_sat, dtype=np.float32)
+        elif split >= num_leds - 1:
+            # All start color
+            hues = np.full(num_leds, self.start_hue, dtype=np.float32)
+            sats = np.full(num_leds, self.start_sat, dtype=np.float32)
+        else:
+            # First part: start color to end color
+            hues = np.concatenate(
+                [
+                    np.linspace(
+                        self.start_hue, self.end_hue, num_leds - split, dtype=np.float32
+                    ),
+                    np.full(split, self.end_hue, dtype=np.float32),
+                ]
+            )
+            sats = np.concatenate(
+                [
+                    np.linspace(
+                        self.start_sat, self.end_sat, num_leds - split, dtype=np.float32
+                    ),
+                    np.full(split, self.end_sat, dtype=np.float32),
+                ]
+            )
         return hues, sats
 
 

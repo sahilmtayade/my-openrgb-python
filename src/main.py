@@ -3,18 +3,25 @@
 #
 import time
 from enum import Enum, auto
+
 from openrgb import OpenRGBClient
-from openrgb.utils import RGBColor
+from openrgb.utils import DeviceType, RGBColor
 
 # Import the framework and your custom effect classes
-from stage_manager import StageManager
-from utils import (
-    LiquidFill,
+from .stage_manager import StageManager
+from .utils.effects import (
     Chase,
-    SignFlicker,
-    Static,
-    Fade,
+    # Fade,
+    LiquidFill,
+    # SignFlicker,
+    StaticBrightness,
 )  # NOTE: You must create these!
+from .utils.effects.color_source import Gradient, StaticColor
+from .utils.openrgb_helper import (
+    ZoneConfig,
+    configure_motherboard_zones,
+    configure_standalone_devices,
+)
 
 
 # --- Define states for the application's lifecycle ---
@@ -27,10 +34,19 @@ class AppState(Enum):
 
 
 # --- Define constant colors and settings ---
-LIQUID_COLOR = RGBColor(70, 0, 255)
-RAM_CHASE_COLOR_MAP = [RGBColor(255, 0, 0), RGBColor(255, 80, 0), RGBColor(255, 150, 0)]
+ZONE_CONFIGS = [
+    ZoneConfig(index=0, role="strimmer", name="D_LED1 Bottom", led_count=27),
+    ZoneConfig(index=1, role="fans", name="D_LED2 Top", led_count=24),
+]
+
+# Color palettes in HSV (Hue 0-1, Saturation 0-1)
+STRIMMER_HSV = (18 / 360, 1.0)  # A vibrant, saturated blue/purple
+RAM_FAN_START_HSV = (0.0, 0)  # White
+RAM_FAN_END_HSV = (18 / 360, 1.0)  # Fiery orange
+
 FPS = 60
 FRAME_TIME = 1.0 / FPS
+STANDALONE_DEVICES = [DeviceType.DRAM]
 
 
 def run():
@@ -39,28 +55,40 @@ def run():
 
     # --- Device Setup ---
     try:
-        print("Detecting devices...")
-        cables = client.get_devices_by_name("My Cable Combs")[0]
-        fans = client.get_devices_by_name("My Case Fans")[0]
-        ram1 = client.get_devices_by_name("My RAM Stick 1")[0]
-        ram2 = client.get_devices_by_name("My RAM Stick 2")[0]
-        all_devices = [cables, fans, ram1, ram2]
-        print("All devices found.")
-    except IndexError:
-        print(
-            "FATAL: Could not find all required RGB devices. Please check names in OpenRGB."
-        )
+        # --- 1. Hardware Initialization ---
+        motherboard_zones = configure_motherboard_zones(client, ZONE_CONFIGS)
+        standalone_devices = configure_standalone_devices(client, STANDALONE_DEVICES)
+
+        # --- 2. Get Specific Devices and Create Master List ---
+        strimmer = motherboard_zones.get("strimmer")
+        fans = motherboard_zones.get("fans")
+        dram_sticks = [dev for dev in standalone_devices if dev.type == DeviceType.DRAM]
+
+        if not strimmer or not fans or not dram_sticks:
+            print("FATAL: One or more essential devices not found. Exiting.")
+            return
+
+        all_managed_devices = list(motherboard_zones.values()) + standalone_devices
+
+        # --- 3. Framework and State Machine Setup ---
+        manager = StageManager(all_managed_devices)
+    except Exception as e:
+        print(f"FATAL: Could not initialize hardware: {e}")
         return
 
-    # --- Initialization ---
-    manager = StageManager(all_devices)
     current_state = AppState.STATE_1_LIQUID
     blocking_effects = []
 
+    # --- Define Color Sources ---
+    strimmer_source = StaticColor(hsv=STRIMMER_HSV)
+    ram_fan_gradient = Gradient(
+        start_hsv=RAM_FAN_START_HSV, end_hsv=RAM_FAN_END_HSV, weight=0.8
+    )
+
     # --- Kick off the sequence ---
     print(f"[{current_state.name}] Starting...")
-    effect = LiquidFill(cables, speed=5.0, color=LIQUID_COLOR)
-    manager.add_effect(effect, cables)
+    effect = LiquidFill(strimmer, color_source=strimmer_source, speed=5.0)
+    manager.add_effect(effect, strimmer)
     blocking_effects.append(effect)
 
     # --- Main Application Loop ---
@@ -79,37 +107,58 @@ def run():
                     current_state = AppState.STATE_2_MAIN_SHOW
                     print(f"[{current_state.name}] Starting...")
                     blocking_effects.clear()
-                    manager.clear_effects(cables)
-
-                    manager.add_effect(Static(cables, color=LIQUID_COLOR), cables)
+                    manager.clear_effects(strimmer)
+                    manager.add_effect(
+                        StaticBrightness(strimmer, color_source=strimmer_source),
+                        strimmer,
+                    )
                     chase1 = Chase(
-                        ram1, color_map=RAM_CHASE_COLOR_MAP, speed=20, delay=0.0
+                        dram_sticks[0],
+                        color_source=ram_fan_gradient,
+                        speed=20,
+                        delay=0.0,
+                        width=3,
+                        reverse=True,
                     )
                     chase2 = Chase(
-                        ram2, color_map=RAM_CHASE_COLOR_MAP, speed=20, delay=0.5
+                        dram_sticks[1],
+                        color_source=ram_fan_gradient,
+                        speed=20,
+                        delay=0.3,
+                        width=3,
+                        reverse=True,
                     )
-                    flicker = SignFlicker(fans)
-                    manager.add_effect(chase1, ram1)
-                    manager.add_effect(chase2, ram2)
-                    manager.add_effect(flicker, fans)
-                    blocking_effects = [chase1, chase2, flicker]
+                    # flicker = SignFlicker(fans)
+                    manager.add_effect(chase1, dram_sticks[0])
+                    manager.add_effect(chase2, dram_sticks[1])
+                    # manager.add_effect(flicker, fans)
+                    blocking_effects = [
+                        chase1,
+                        chase2,
+                        # flicker
+                    ]
 
                 elif current_state == AppState.STATE_2_MAIN_SHOW:
                     current_state = AppState.STATE_3_FADE_OUT
                     print(f"[{current_state.name}] Starting...")
                     blocking_effects.clear()
-                    for dev in all_devices:
+                    for dev in all_managed_devices:
                         manager.clear_effects(dev)
 
-                    fade_cables = Fade(cables, from_color=LIQUID_COLOR)
-                    fade_fans = Fade(fans, from_color=RAM_CHASE_COLOR_MAP[0])
-                    fade_ram1 = Fade(ram1, from_color=RGBColor(255, 200, 0))
-                    fade_ram2 = Fade(ram2, from_color=RGBColor(255, 200, 0))
-                    manager.add_effect(fade_cables, cables)
-                    manager.add_effect(fade_fans, fans)
-                    manager.add_effect(fade_ram1, ram1)
-                    manager.add_effect(fade_ram2, ram2)
-                    blocking_effects = [fade_cables, fade_fans, fade_ram1, fade_ram2]
+                    # fade_strimmer = Fade(strimmer, from_color=LIQUID_COLOR)
+                    # fade_fans = Fade(fans, from_color=RAM_CHASE_COLOR_MAP[0])
+                    # fade_dram1 = Fade(dram_sticks[0], from_color=RGBColor(255, 200, 0))
+                    # fade_dram2 = Fade(dram_sticks[1], from_color=RGBColor(255, 200, 0))
+                    # manager.add_effect(fade_strimmer, strimmer)
+                    # manager.add_effect(fade_fans, fans)
+                    # manager.add_effect(fade_dram1, dram_sticks[0])
+                    # manager.add_effect(fade_dram2, dram_sticks[1])
+                    # blocking_effects = [
+                    #     fade_strimmer,
+                    #     fade_fans,
+                    #     fade_dram1,
+                    #     fade_dram2,
+                    # ]
 
                 elif current_state == AppState.STATE_3_FADE_OUT:
                     current_state = AppState.STATE_4_IDLE
@@ -117,7 +166,7 @@ def run():
                         f"[{current_state.name}] Startup complete. Running idle effects."
                     )
                     blocking_effects.clear()
-                    for dev in all_devices:
+                    for dev in all_managed_devices:
                         manager.clear_effects(dev)
 
                     # for dev in all_devices:
@@ -133,7 +182,7 @@ def run():
     finally:
         # --- Cleanup ---
         print("Clearing all devices to black.")
-        for device in all_devices:
+        for device in all_managed_devices:
             device.clear()
             # A final show call may be needed on some devices to apply the clear
             device.show()
