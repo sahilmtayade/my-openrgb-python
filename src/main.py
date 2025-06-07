@@ -11,12 +11,17 @@ from openrgb.utils import DeviceType, RGBColor
 from .stage_manager import StageManager
 from .utils.effects import (
     Chase,
-    # Fade,
+    FadeToBlack,
+    FlickerRamp,
     LiquidFill,
-    # SignFlicker,
     StaticBrightness,
 )  # NOTE: You must create these!
-from .utils.effects.color_source import Gradient, StaticColor
+from .utils.effects.color_source import (
+    Gradient,
+    MultiGradient,
+    ScrollingColorSource,
+    StaticColor,
+)
 from .utils.openrgb_helper import (
     ZoneConfig,
     configure_motherboard_zones,
@@ -81,8 +86,23 @@ def run():
 
     # --- Define Color Sources ---
     strimmer_source = StaticColor(hsv=STRIMMER_HSV)
-    ram_fan_gradient = Gradient(
-        start_hsv=RAM_FAN_START_HSV, end_hsv=RAM_FAN_END_HSV, weight=0.8
+    ram_gradient = Gradient(
+        start_hsv=RAM_FAN_START_HSV,
+        end_hsv=RAM_FAN_END_HSV,
+        start_pos=0,
+        end_pos=0.4,
+    )
+    flame_gradient = MultiGradient(
+        [
+            ((0.043, 1), 0.0),  # Dim red/orange at the very start
+            ((0.0, 1.0), 0.4),  # Bright red at 40%
+            ((0.0, 1.0), 0.6),  # Back to bright red at 60%
+            ((0.043, 1), 1.0),  # Dim red/orange at the end
+        ]
+    )
+    fan_scrolling_color = ScrollingColorSource(
+        source=flame_gradient,
+        speed=5,
     )
 
     # --- Kick off the sequence ---
@@ -109,34 +129,46 @@ def run():
                     blocking_effects.clear()
                     manager.clear_effects(strimmer)
                     manager.add_effect(
-                        StaticBrightness(strimmer, color_source=strimmer_source),
+                        StaticBrightness(strimmer, color_source=fan_scrolling_color),
                         strimmer,
                     )
                     chase1 = Chase(
                         dram_sticks[0],
-                        color_source=ram_fan_gradient,
+                        color_source=ram_gradient,
                         speed=20,
                         delay=0.0,
                         width=3,
+                        duration=5,
+                        loop_interval=1,
                         reverse=True,
                     )
                     chase2 = Chase(
                         dram_sticks[1],
-                        color_source=ram_fan_gradient,
+                        color_source=ram_gradient,
                         speed=20,
                         delay=0.3,
                         width=3,
+                        duration=5,
+                        loop_interval=1,
                         reverse=True,
                     )
-                    # flicker = SignFlicker(fans)
+                    flicker = FlickerRamp(
+                        fans,
+                        color_source=fan_scrolling_color,
+                        pause_to_ramp_ratio=1.0,
+                        total_duration=20,
+                        # num_stages=80,
+                        convergence_factor=0.7,
+                        comet_width=3,
+                        dither_strength=0,
+                    )
+                    flicker = StaticBrightness(
+                        fans, color_source=fan_scrolling_color, duration=5
+                    )
                     manager.add_effect(chase1, dram_sticks[0])
                     manager.add_effect(chase2, dram_sticks[1])
-                    # manager.add_effect(flicker, fans)
-                    blocking_effects = [
-                        chase1,
-                        chase2,
-                        # flicker
-                    ]
+                    manager.add_effect(flicker, fans)
+                    blocking_effects = [chase1, chase2, flicker]
 
                 elif current_state == AppState.STATE_2_MAIN_SHOW:
                     current_state = AppState.STATE_3_FADE_OUT
@@ -145,20 +177,22 @@ def run():
                     for dev in all_managed_devices:
                         manager.clear_effects(dev)
 
-                    # fade_strimmer = Fade(strimmer, from_color=LIQUID_COLOR)
-                    # fade_fans = Fade(fans, from_color=RAM_CHASE_COLOR_MAP[0])
-                    # fade_dram1 = Fade(dram_sticks[0], from_color=RGBColor(255, 200, 0))
-                    # fade_dram2 = Fade(dram_sticks[1], from_color=RGBColor(255, 200, 0))
-                    # manager.add_effect(fade_strimmer, strimmer)
-                    # manager.add_effect(fade_fans, fans)
-                    # manager.add_effect(fade_dram1, dram_sticks[0])
-                    # manager.add_effect(fade_dram2, dram_sticks[1])
-                    # blocking_effects = [
-                    #     fade_strimmer,
-                    #     fade_fans,
-                    #     fade_dram1,
-                    #     fade_dram2,
-                    # ]
+                    fade_strimmer = FadeToBlack(
+                        strimmer, color_source=fan_scrolling_color
+                    )
+                    fade_fans = FadeToBlack(fans, color_source=fan_scrolling_color)
+                    fade_dram1 = FadeToBlack(dram_sticks[0], color_source=ram_gradient)
+                    fade_dram2 = FadeToBlack(dram_sticks[1], color_source=ram_gradient)
+                    manager.add_effect(fade_strimmer, strimmer)
+                    manager.add_effect(fade_fans, fans)
+                    manager.add_effect(fade_dram1, dram_sticks[0])
+                    manager.add_effect(fade_dram2, dram_sticks[1])
+                    blocking_effects = [
+                        fade_strimmer,
+                        fade_fans,
+                        fade_dram1,
+                        fade_dram2,
+                    ]
 
                 elif current_state == AppState.STATE_3_FADE_OUT:
                     current_state = AppState.STATE_4_IDLE

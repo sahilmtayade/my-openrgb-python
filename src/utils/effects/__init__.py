@@ -1,13 +1,14 @@
 # from .neon_sign_flicker import NeonSignFlicker
 from .chase import Chase
 from .color_source import (
-    ColorMap,
     ColorSource,
     Gradient,
-    ScrollingColorMap,
+    ScrollingColorSource,
     StaticColor,
 )
 from .effect import Effect
+from .fade import FadeToBlack
+from .flicker_ramp import FlickerRamp
 from .liquid_fill import LiquidFill
 from .manual_ramp import ManualBrightnessRamp
 from .static import StaticBrightness
@@ -17,10 +18,11 @@ __all__ = [
     "ColorSource",
     "Gradient",
     "StaticColor",
-    "ColorMap",
-    "ScrollingColorMap",
+    "ScrollingColorSource",
     "LiquidFill",
     "Chase",
     "ManualBrightnessRamp",
     "StaticBrightness",
+    "FlickerRamp",
+    "FadeToBlack",
 ]

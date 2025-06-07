@@ -1,0 +1,18 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        
+        {
+      "name": "Python: Run src.main", // A descriptive name for you to see
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.main", // <-- THIS IS THE MAGIC KEY
+      "console": "integratedTerminal",
+      "justMyCode": true // Optional, but recommended. Skips stepping into library code.
+    }
+    ]
+}
