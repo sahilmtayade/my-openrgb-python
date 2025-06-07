@@ -2,3 +2,6 @@ openrgb-python
 requests
 jsonschema
 python-dotenv
+numpy
+colour-science
+logger_tt

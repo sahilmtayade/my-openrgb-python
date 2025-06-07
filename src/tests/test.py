@@ -2,20 +2,12 @@ from dotenv import load_dotenv
 from openrgb import OpenRGBClient
 from openrgb.utils import RGBColor, DeviceType
 import time
-from dataclasses import dataclass
 
-from utils.openrgb_helper import resize_argb_zones
-from utils.debug_utils import debug_print
+from ..utils.openrgb_helper import resize_argb_zones
+from ..utils.debug_utils import debug_print
+from ..utils.openrgb_helper import ZoneConfig
 
 load_dotenv()
-
-
-@dataclass
-class ZoneConfig:
-    index: int
-    role: str
-    name: str
-    led_count: int
 
 
 ZONE_CONFIGS = [

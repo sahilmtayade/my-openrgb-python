@@ -8,7 +8,14 @@ from openrgb.utils import RGBColor
 
 # Import the framework and your custom effect classes
 from stage_manager import StageManager
-from my_effects import LiquidFill, Chase, SignFlicker, Static, Fade, IdleRainbow # NOTE: You must create these!
+from utils import (
+    LiquidFill,
+    Chase,
+    SignFlicker,
+    Static,
+    Fade,
+)  # NOTE: You must create these!
+
 
 # --- Define states for the application's lifecycle ---
 class AppState(Enum):
@@ -18,16 +25,18 @@ class AppState(Enum):
     STATE_4_IDLE = auto()
     EXITING = auto()
 
+
 # --- Define constant colors and settings ---
 LIQUID_COLOR = RGBColor(70, 0, 255)
-RAM_CHASE_COLOR_MAP = [RGBColor(255,0,0), RGBColor(255,80,0), RGBColor(255,150,0)]
+RAM_CHASE_COLOR_MAP = [RGBColor(255, 0, 0), RGBColor(255, 80, 0), RGBColor(255, 150, 0)]
 FPS = 60
 FRAME_TIME = 1.0 / FPS
+
 
 def run():
     """Main function to run the lighting controller."""
     client = OpenRGBClient()
-    
+
     # --- Device Setup ---
     try:
         print("Detecting devices...")
@@ -38,7 +47,9 @@ def run():
         all_devices = [cables, fans, ram1, ram2]
         print("All devices found.")
     except IndexError:
-        print("FATAL: Could not find all required RGB devices. Please check names in OpenRGB.")
+        print(
+            "FATAL: Could not find all required RGB devices. Please check names in OpenRGB."
+        )
         return
 
     # --- Initialization ---
@@ -56,7 +67,7 @@ def run():
     try:
         while current_state != AppState.EXITING:
             loop_start_time = time.monotonic()
-            
+
             # This single call runs all animations and updates hardware
             manager.update()
 
@@ -71,8 +82,12 @@ def run():
                     manager.clear_effects(cables)
 
                     manager.add_effect(Static(cables, color=LIQUID_COLOR), cables)
-                    chase1 = Chase(ram1, color_map=RAM_CHASE_COLOR_MAP, speed=20, delay=0.0)
-                    chase2 = Chase(ram2, color_map=RAM_CHASE_COLOR_MAP, speed=20, delay=0.5)
+                    chase1 = Chase(
+                        ram1, color_map=RAM_CHASE_COLOR_MAP, speed=20, delay=0.0
+                    )
+                    chase2 = Chase(
+                        ram2, color_map=RAM_CHASE_COLOR_MAP, speed=20, delay=0.5
+                    )
                     flicker = SignFlicker(fans)
                     manager.add_effect(chase1, ram1)
                     manager.add_effect(chase2, ram2)
@@ -83,7 +98,8 @@ def run():
                     current_state = AppState.STATE_3_FADE_OUT
                     print(f"[{current_state.name}] Starting...")
                     blocking_effects.clear()
-                    for dev in all_devices: manager.clear_effects(dev)
+                    for dev in all_devices:
+                        manager.clear_effects(dev)
 
                     fade_cables = Fade(cables, from_color=LIQUID_COLOR)
                     fade_fans = Fade(fans, from_color=RAM_CHASE_COLOR_MAP[0])
@@ -97,13 +113,16 @@ def run():
 
                 elif current_state == AppState.STATE_3_FADE_OUT:
                     current_state = AppState.STATE_4_IDLE
-                    print(f"[{current_state.name}] Startup complete. Running idle effects.")
+                    print(
+                        f"[{current_state.name}] Startup complete. Running idle effects."
+                    )
                     blocking_effects.clear()
-                    for dev in all_devices: manager.clear_effects(dev)
-                    
                     for dev in all_devices:
-                        manager.add_effect(IdleRainbow(dev, speed=0.1), dev)
-            
+                        manager.clear_effects(dev)
+
+                    # for dev in all_devices:
+                    #     manager.add_effect(IdleRainbow(dev, speed=0.1), dev)
+
             # --- Frame Rate Limiter ---
             elapsed = time.monotonic() - loop_start_time
             if (sleep_time := FRAME_TIME - elapsed) > 0:
@@ -118,6 +137,7 @@ def run():
             device.clear()
             # A final show call may be needed on some devices to apply the clear
             device.show()
+
 
 if __name__ == "__main__":
     run()
