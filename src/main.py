@@ -70,6 +70,9 @@ FPS = 60
 FRAME_TIME = 1.0 / FPS
 STANDALONE_DEVICES = [DeviceType.DRAM]
 RAM_OFFSET = 0.3
+IDLE_CHASE_INTERVAL = 30  # Time in seconds between idle chases
+IDLE_CHASE_SPEED = 30.0  # Speed of the idle chase effect
+IDLE_CHASE_DELAY = 5  # Delay before the idle chase starts
 
 
 def run():
@@ -253,7 +256,47 @@ def run():
                     manager.add_effect(idle_ram1, dram_sticks[0])
                     manager.add_effect(idle_ram2, dram_sticks[1])
 
-                    blocking_effects.extend([idle_ram1, idle_ram2])
+                    # --- NEW: Add chase effects for fans and strimmer in idle state ---
+                    idle_fan_color = ScrollingPauseColorSource(
+                        source=ram_idle_gradient,
+                        speed=10.0,
+                        pause=20,
+                        scroll_fraction=1.6,
+                        initial_roll_ratio=0.0,
+                    )
+                    idle_strimmer_color = ScrollingPauseColorSource(
+                        source=ram_idle_gradient,
+                        speed=10.0,
+                        pause=20,
+                        scroll_fraction=1.6,
+                        initial_roll_ratio=RAM_OFFSET,
+                    )
+                    idle_fan_chase = Chase(
+                        fans,
+                        color_source=idle_fan_color,
+                        speed=IDLE_CHASE_SPEED,
+                        delay=IDLE_CHASE_DELAY,
+                        width=3,
+                        duration=None,
+                        loop_interval=IDLE_CHASE_INTERVAL,  # long loop interval
+                        reverse=False,
+                    )
+                    idle_strimmer_chase = Chase(
+                        strimmer,
+                        color_source=idle_strimmer_color,
+                        speed=IDLE_CHASE_SPEED,
+                        delay=IDLE_CHASE_DELAY,
+                        width=3,
+                        duration=None,
+                        loop_interval=IDLE_CHASE_INTERVAL,  # long loop interval
+                        reverse=False,
+                    )
+                    manager.add_effect(idle_fan_chase, fans)
+                    manager.add_effect(idle_strimmer_chase, strimmer)
+
+                    blocking_effects.extend(
+                        [idle_ram1, idle_ram2, idle_fan_chase, idle_strimmer_chase]
+                    )
 
             elapsed = time.monotonic() - loop_start_time
             if (sleep_time := FRAME_TIME - elapsed) > 0:
