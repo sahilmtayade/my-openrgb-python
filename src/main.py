@@ -73,7 +73,7 @@ def run():
     """Main function to run the lighting controller."""
     try:
         # Adjust the number of devices as needed
-        client = connect_with_retry(num_devices=4)
+        client = connect_with_retry(num_devices=3, num_zones=2)
     except TimeoutError as e:
         print(f"FATAL: Could not connect to OpenRGB server: {e}")
         return

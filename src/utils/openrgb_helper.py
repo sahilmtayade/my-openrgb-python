@@ -111,6 +111,7 @@ SERVER_POLL_INTERVAL = 0.2  # Seconds between connection attempts
 # --- NEW: Connection Polling Function ---
 def connect_with_retry(
     num_devices: int,
+    num_zones: int,
     timeout: float = SERVER_POLL_TIMEOUT,
     interval: float = SERVER_POLL_INTERVAL,
 ) -> OpenRGBClient:
@@ -138,8 +139,16 @@ def connect_with_retry(
             devices = client.devices
             if devices:
                 if len(devices) == num_devices:
-                    print(f"  - Success! Detected {len(devices)} devices.")
-                    return client
+                    motherboard = client.get_devices_by_type(DeviceType.MOTHERBOARD)[0]
+                    if len(motherboard.zones) >= num_zones:
+                        print(
+                            f"  - Success! Detected {len(devices)} devices with {len(motherboard.zones)} zones."
+                        )
+                        return client
+                    else:
+                        print(
+                            f"  - Connected, but found {len(motherboard.zones)} zones (expected at least {num_zones})."
+                        )
                 else:
                     print(
                         f"  - Connected, but found {len(devices)} devices (expected {num_devices}). {devices=}"
