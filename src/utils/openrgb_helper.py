@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 
 from openrgb import OpenRGBClient
@@ -97,3 +98,44 @@ if __name__ == "__main__":
     print(f"Found {len(devices)} MOTHERBOARD/DRAM devices:")
     for dev in devices:
         print(f"- {dev.name} ({dev.type.name})")
+
+
+# ... (all your other imports) ...
+
+# --- Configuration Constants (Can be in a separate file) ---
+# ... (all your configs like FPS, ZONE_CONFIGS, etc.) ...
+SERVER_POLL_TIMEOUT = 15  # Max seconds to wait for the server to start
+SERVER_POLL_INTERVAL = 0.2  # Seconds between connection attempts
+
+
+# --- NEW: Connection Polling Function ---
+def connect_with_retry(
+    timeout: float = SERVER_POLL_TIMEOUT, interval: float = SERVER_POLL_INTERVAL
+) -> OpenRGBClient:
+    """
+    Attempts to connect to the OpenRGB server, retrying until the timeout.
+
+    Args:
+        timeout: The maximum number of seconds to keep trying.
+        interval: The time in seconds to wait between connection attempts.
+
+    Returns:
+        An initialized and connected OpenRGBClient instance.
+
+    Raises:
+        TimeoutError: If a connection cannot be established within the timeout.
+    """
+    start_time = time.monotonic()
+    print("Attempting to connect to OpenRGB server...")
+    while time.monotonic() - start_time < timeout:
+        try:
+            client = OpenRGBClient()
+            # If the above line doesn't raise an exception, we are connected.
+            print("Successfully connected to OpenRGB server.")
+            return client
+        except Exception:
+            # Server is not ready yet, wait for the interval and try again.
+            time.sleep(interval)
+
+    # If the loop finishes without returning, we have timed out.
+    raise TimeoutError(f"Could not connect to OpenRGB server within {timeout} seconds.")

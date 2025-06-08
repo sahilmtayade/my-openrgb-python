@@ -40,6 +40,7 @@ from .utils.openrgb_helper import (
     ZoneConfig,
     configure_motherboard_zones,
     configure_standalone_devices,
+    connect_with_retry,
 )
 
 
@@ -70,8 +71,11 @@ IDLE_CHASE_DELAY = 5  # Delay before the idle chase starts
 
 def run():
     """Main function to run the lighting controller."""
-    client = OpenRGBClient()
-
+    try:
+        client = connect_with_retry()
+    except TimeoutError as e:
+        print(f"FATAL: Could not connect to OpenRGB server: {e}")
+        return
     # --- Device Setup ---
     try:
         motherboard_zones = configure_motherboard_zones(client, ZONE_CONFIGS)
