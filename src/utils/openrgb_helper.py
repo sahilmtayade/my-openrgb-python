@@ -143,7 +143,7 @@ def connect_with_retry(
             # Step 2: Check if devices have been detected
             devices = client.devices
             if devices:
-                if len(devices) == num_devices:
+                if len(devices) >= num_devices:
                     motherboard = client.get_devices_by_type(DeviceType.MOTHERBOARD)[0]
                     if len(motherboard.zones) >= num_zones:
                         print(
