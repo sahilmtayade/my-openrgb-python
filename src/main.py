@@ -79,6 +79,8 @@ def run():
         client = connect_with_retry(
             num_devices=3,
             num_zones=2,
+            timeout=300,
+            interval=5.0,
         )
 
         # Part 2: Configure Hardware (with its own timeout)
