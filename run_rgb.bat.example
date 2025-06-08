@@ -1,28 +1,93 @@
 @echo off
 REM ==========================================================================
-REM  Example startup script for the RGB Controller.
+REM  Example Startup Script for the RGB Controller
+REM
+REM  This script can automatically start the OpenRGB server and then launch
+REM  the Python lighting controller. The Python script will actively wait for
+REM  the server to be ready, ensuring the fastest possible startup.
+REM
+REM  --- INSTRUCTIONS ---
+REM  1. RENAME this file from 'run_rgb.bat.example' to 'run_rgb.bat'.
+REM  2. EDIT the configuration variables in the section below to match your
+REM     system's file paths.
+REM
+REM  This '.bat' file should be added to your .gitignore to protect your
+REM  personal paths.
 REM ==========================================================================
 
-REM --- Configuration ---
+REM ##########################################################################
+REM #                        CONFIGURATION                                   #
+REM ##########################################################################
+
+REM Set to "true" to have this script automatically start the OpenRGB server.
+REM Set to "false" if you already have OpenRGB running as a service or on startup.
 SET "MANAGE_SERVER=true"
-SET "OPENRGB_EXE=C:\Path\To\Your\OpenRGB\OpenRGB.exe"
-SET "PYTHON_EXE=C:\Path\To\Your\Python\python.exe"
 
-REM --- Sanity Checks (unchanged) ---
-REM ...
+REM --- !!! IMPORTANT: EDIT THESE PATHS !!! ---
 
-REM --- Execution ---
+REM Set this to the FULL, ABSOLUTE path of your OpenRGB.exe
+REM Default is usually in "C:\Program Files\OpenRGB"
+SET "OPENRGB_EXE=C:\Program Files\OpenRGB\OpenRGB.exe"
+
+REM Set this to the FULL, ABSOLUTE path of your project's python.exe
+REM To find this, open a command prompt and type: where python
+SET "PYTHON_EXE=C:\Users\YourUser\AppData\Local\Programs\Python\Python311\python.exe"
+
+
+REM ##########################################################################
+REM #                        EXECUTION LOGIC (DO NOT EDIT)                     #
+REM ##########################################################################
+
+REM --- Sanity Checks ---
+IF "%MANAGE_SERVER%"=="true" (
+    IF "%OPENRGB_EXE%"=="C:\Program Files\OpenRGB\OpenRGB.exe" (
+        echo.
+        echo [ERROR] MANAGE_SERVER is true, but OPENRGB_EXE is set to the default path.
+        echo         Please edit run_rgb.bat and verify the path to your OpenRGB.exe.
+        echo.
+        pause
+        GOTO :EOF
+    )
+    IF NOT EXIST "%OPENRGB_EXE%" (
+        echo.
+        echo [ERROR] OpenRGB.exe not found at the specified path:
+        echo %OPENRGB_EXE%
+        echo Please check the path in run_rgb.bat.
+        echo.
+        pause
+        GOTO :EOF
+    )
+)
+
+IF "%PYTHON_EXE%"=="C:\Users\YourUser\AppData\Local\Programs\Python\Python311\python.exe" (
+    echo.
+    echo [ERROR] You must edit run_rgb.bat and set the PYTHON_EXE variable to your real path.
+    echo.
+    pause
+    GOTO :EOF
+)
+IF NOT EXIST "%PYTHON_EXE%" (
+    echo.
+    echo [ERROR] Python.exe not found at the specified path:
+    echo %PYTHON_EXE%
+    echo Please check the path in run_rgb.bat.
+    echo.
+    pause
+    G.OTO :EOF
+)
+
+
+REM --- Main Execution ---
+
+REM Start the OpenRGB Server if configured to do so.
 IF %MANAGE_SERVER%==true (
     ECHO Starting OpenRGB Server in the background...
-    START "OpenRGB Server" "%OPENRGB_EXE%" --server
-    
-    REM --- THE CHANGE IS HERE ---
-    REM The 5-second timeout is no longer needed.
-    REM The Python script will now poll for the server itself.
-    REM timeout /t 5 /nobreak > NUL  <-- DELETE THIS LINE
+    REM The START command runs OpenRGB in a new process without blocking.
+    START "OpenRGB Server" /B "%OPENRGB_EXE%" --server
 )
 
 ECHO Starting RGB Controller...
-START "" /B "%PYTHON_EXE%" -m src.main
+REM Run the Python script. The script itself will wait for the server to be ready.
+START "RGB Controller" /B "%PYTHON_EXE%" -m src.main
 
 :EOF
