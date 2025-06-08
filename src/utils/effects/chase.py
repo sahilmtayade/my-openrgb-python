@@ -1,5 +1,5 @@
 #
-# file: src/utils/effects/chase.py (Corrected)
+# file: src/utils/effects/chase.py (Improved)
 #
 import time
 from typing import Optional, Unpack
@@ -13,7 +13,7 @@ from .effect import Effect, EffectOptionsKwargs
 class Chase(Effect):
     """
     A "comet" or "chase" effect with a bright head and a tapering tail that
-    moves across the LED strip. Supports looping and a finite duration.
+    moves smoothly across the LED strip using sub-pixel rendering.
     """
 
     def __init__(
@@ -24,6 +24,7 @@ class Chase(Effect):
         delay: float = 0.0,
         duration: Optional[float] = None,
         loop_interval: float = 0.0,
+        resolution_multiplier: int = 8,  # <-- NEW: Controls smoothness
         **kwargs: Unpack[EffectOptionsKwargs],
     ):
         """
@@ -32,11 +33,13 @@ class Chase(Effect):
         Args:
             width: The total integer width of the comet in LEDs.
             delay: An initial delay before the first run starts.
-            duration: If set, the effect will stop looping and finish after this
-                      many seconds have passed since its creation.
-            loop_interval: The time in seconds to wait between the end of one
-                           run and the start of the next.
-            **kwargs: Standard effect options like speed, reverse, gamma, etc.
+            duration: If set, the effect will stop looping and finish.
+            loop_interval: The time to wait between the end of one run
+                           and the start of the next.
+            resolution_multiplier: Higher values create a smoother, anti-aliased
+                                   comet at the cost of more memory/CPU. 8 is
+                                   a good default for a smooth look.
+            **kwargs: Standard effect options.
         """
         super().__init__(rgb_container, color_source, **kwargs)
 
@@ -44,66 +47,75 @@ class Chase(Effect):
         self.delay = delay
         self.duration = duration
         self.loop_interval = max(0.0, loop_interval)
-
-        # --- NEW: Simplified state management ---
-        # This will hold the time.monotonic() value when the current run
-        # is scheduled to start. It's the key to resetting the animation.
+        self.resolution_multiplier = max(1, resolution_multiplier)
         self._loop_start_time: Optional[float] = None
 
-        # Pre-calculate the brightness pattern for efficiency
-        self.pattern = np.linspace(1.0, 0.0, num=self.width, dtype=np.float32)
+        # --- NEW: Create a high-resolution pattern for smooth stamping ---
+        high_res_width = self.width * self.resolution_multiplier
+        self.high_res_pattern = np.linspace(
+            1.0, 0.0, num=high_res_width, dtype=np.float32
+        )
 
     def _update_brightness(self):
         """
-        Calculates the position of the chase, handles the looping state,
-        and stamps the brightness pattern onto the main brightness array.
+        Calculates the sub-pixel position of the chase and renders it to a
+        high-resolution canvas before downsampling for a smooth result.
         """
         now = time.monotonic()
 
-        # 1. Check for permanent completion based on total duration
+        # 1. Looping and timing logic (unchanged)
         if self.duration is not None and (now - self.start_time) >= self.duration:
             self._is_finished = True
             self.brightness_array.fill(0.0)
             return
 
-        # 2. Initialize the start time for the very first loop, including the delay
         if self._loop_start_time is None:
             self._loop_start_time = self.start_time + self.delay
 
-        # 3. Check if we are currently in a delay or loop_interval period
         if now < self._loop_start_time:
-            # We are waiting for the next run to start. Keep the strip black.
             self.brightness_array.fill(0.0)
             return
 
-        # --- If we get here, the comet is actively running ---
-
-        # 4. Calculate position based on time *since the current loop started*
+        # 2. Calculate floating-point position (unchanged)
         time_in_loop = now - self._loop_start_time
         head_position = time_in_loop * self.options.speed
 
-        # 5. Check if the current run has finished
+        # 3. Check for run completion (unchanged)
         comet_start_position = head_position - self.width
         if comet_start_position >= self.num_leds:
-            # The comet has moved off-screen. Schedule the next loop.
             self._loop_start_time = now + self.loop_interval
             self.brightness_array.fill(0.0)
             return
 
-        # 6. If the comet is on-screen, draw it.
-        self.brightness_array.fill(0.0)
+        # --- NEW: High-Resolution Rendering Logic ---
 
-        int_head_pos = int(head_position)
-        target_start = int_head_pos - self.width
+        # 4. Create a high-resolution canvas to draw on.
+        high_res_led_count = self.num_leds * self.resolution_multiplier
+        high_res_canvas = np.zeros(high_res_led_count, dtype=np.float32)
+
+        # 5. Calculate the comet's head position in the high-res space.
+        high_res_head_pos = head_position * self.resolution_multiplier
+        int_head_pos = int(high_res_head_pos)
+
+        # 6. "Stamp" the high-res pattern onto the high-res canvas.
+        #    This is the same slicing logic as before, but with high-res variables.
+        target_start = int_head_pos - len(self.high_res_pattern)
         target_end = int_head_pos
 
         write_start = max(0, target_start)
-        write_end = min(self.num_leds, target_end)
+        write_end = min(high_res_led_count, target_end)
 
-        if write_start >= write_end:
-            return  # Comet is not yet on screen
+        if write_start < write_end:
+            read_start = write_start - target_start
+            read_end = write_end - target_start
+            high_res_canvas[write_start:write_end] = self.high_res_pattern[
+                read_start:read_end
+            ]
 
-        read_start = write_start - target_start
-        read_end = write_end - target_start
-
-        self.brightness_array[write_start:write_end] = self.pattern[read_start:read_end]
+        # 7. Downsample the high-res canvas to the final brightness array.
+        #    We do this by reshaping the canvas and averaging each block of
+        #    high-res pixels that corresponds to a single real LED.
+        reshaped_canvas = high_res_canvas.reshape(
+            self.num_leds, self.resolution_multiplier
+        )
+        np.mean(reshaped_canvas, axis=1, out=self.brightness_array)

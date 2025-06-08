@@ -39,13 +39,12 @@ class StageManager:
             dev: [RGBColor(0, 0, 0) for _ in dev.leds] for dev in devices
         }
 
-    def add_effect(self, effect: Effect, device: RGBContainer):
-        """Adds a new effect to a specific device. The new effect will be layered on top."""
+    def add_effect(self, effect: Effect):
+        """Adds a new effect to the effect's target device. The new effect will be layered on top."""
+        device = effect.rgb_container
         if device in self._effects_map:
             self._effects_map[device].append(effect)
         else:
-            # This provides a helpful warning if you try to add an effect to a
-            # device that the manager wasn't initialized with.
             print(
                 f"Warning: Device '{str(device)}' is not managed by this StageManager."
             )

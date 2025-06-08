@@ -1,6 +1,18 @@
 # A symmetrical gradient with a bright cyan core and deep blue edges.
 from .utils.effects.color_source import MultiGradient
 
+# --- Color palettes in HSV (Hue 0-1, Saturation 0-1, Value 0-1) --- # <-- CHANGED
+LIQUID_HSV = (18 / 360, 1.0, 1.0)  # Fiery orange at full brightness # <-- CHANGED
+RAM_CHASE_BOTTOM_HSV = (
+    18 / 360,
+    1.0,
+    1.0,
+)
+RAM_CHASE_TOP_HSV = (
+    0.0,
+    0.0,
+    1.0,
+)
 ocean_bands_gradient = MultiGradient(
     [
         ((0.6, 1.0, 0.5), 0.0),  # Start with a darker, deep blue (Value=0.5)
@@ -33,9 +45,10 @@ ocean_shimmer_gradient = MultiGradient(
 
 flame_gradient = MultiGradient(
     [
-        ((0.043, 1.0, 0.7), 0.0),  # Dim red/orange (Value = 0.4) # <-- CHANGED
-        ((0.0, 1.0, 1.0), 0.4),  # Bright red (Value = 1.0)   # <-- CHANGED
+        (LIQUID_HSV, 0.0),  # Dim red/orange (Value = 0.4) # <-- CHANGED
+        (LIQUID_HSV, 0.1),  # Dim red/orange (Value = 0.4) # <-- CHANGED
+        ((0.0, 1.0, 1.0), 0.2),  # Bright red (Value = 1.0)   # <-- CHANGED
         ((0.0, 1.0, 1.0), 0.6),  # Still bright red           # <-- CHANGED
-        ((0.043, 1.0, 0.7), 1.0),  # Dim red/orange again       # <-- CHANGED
+        ((0.0, 0.0, 1), 0.7),  # White
     ]
 )

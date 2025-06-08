@@ -289,7 +289,7 @@ class ScrollingColorSource(ColorSource):
         self, num_leds: int
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         if num_leds <= 0:
-            return (np.array([]),) * 3
+            return (np.array([]),) * 3  # type: ignore
 
         self._generate_base_arrays(num_leds)
         cache_key = num_leds * self.resolution_multiplier
@@ -343,3 +343,98 @@ class ScrollingColorSource(ColorSource):
             return np.flip(final_hues), np.flip(final_sats), np.flip(final_vals)
 
         return final_hues, final_sats, final_vals
+
+
+class ColorShift(ColorSource):
+    """
+    A dynamic color source where the entire device is a single, uniform color
+    that transitions smoothly through a given gradient over time.
+    """
+
+    def __init__(
+        self,
+        gradient_source: MultiGradient,  # Takes a gradient to define the color path
+        cycle_duration: float = 5.0,  # Time in seconds to complete one full cycle
+        delay: float = 0.0,
+        reverse: bool = False,  # Has no effect, but included for API consistency
+    ):
+        """
+        Initializes the ColorShift source.
+
+        Args:
+            gradient_source: A MultiGradient that defines the colors and their
+                             relative timing in the cycle.
+            cycle_duration: The total time in seconds for one full color cycle.
+            delay: Time in seconds to wait before the shifting begins.
+            reverse: This parameter has no effect on a uniform color shift.
+        """
+        super().__init__(reverse=reverse)
+
+        if not isinstance(gradient_source, MultiGradient) or not gradient_source.stops:
+            raise ValueError(
+                "ColorShift requires a non-empty MultiGradient as its source."
+            )
+
+        self.gradient_source = gradient_source
+        self.cycle_duration = max(0.1, cycle_duration)
+        self.delay = delay
+
+        # --- Pre-process the gradient for fast interpolation ---
+        # We extract the stops into separate numpy arrays for use with np.interp
+
+        # Sort stops by position to be safe, though they should be already.
+        sorted_stops = sorted(gradient_source.stops, key=lambda s: s[1])
+
+        self.positions = np.array([pos for hsv, pos in sorted_stops])
+        hues = [hsv[0] for hsv, pos in sorted_stops]
+        sats = [hsv[1] for hsv, pos in sorted_stops]
+        vals = [hsv[2] for hsv, pos in sorted_stops]
+
+        # To handle circular hue interpolation, we need to check if the path
+        # crosses the 0.0/1.0 boundary and adjust.
+        self.hues = self._unwrap_hues(np.array(hues))
+        self.sats = np.array(sats)
+        self.vals = np.array(vals)
+        self._start_time = time.monotonic()
+
+    def reset(self):
+        """Resets the animation's start time to the current moment."""
+        self._start_time = time.monotonic()
+
+    def _unwrap_hues(self, hues: np.ndarray) -> np.ndarray:
+        """Adjusts hues for correct circular interpolation across the 0.0/1.0 boundary."""
+        unwrapped = np.copy(hues)
+        for i in range(1, len(unwrapped)):
+            diff = unwrapped[i] - unwrapped[i - 1]
+            if diff > 0.5:
+                unwrapped[i:] -= 1.0
+            elif diff < -0.5:
+                unwrapped[i:] += 1.0
+        return unwrapped
+
+    def get_hsv_arrays(
+        self, num_leds: int
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Calculates the uniform color for the current frame by interpolating
+        along the gradient path. This is a dynamic source and does not use the
+        parent class's caching.
+        """
+        # 1. Calculate the effective time, accounting for the delay.
+        time_since_start = max(0, (time.monotonic() - self._start_time) - self.delay)
+
+        # 2. Determine the current progress (0.0 to 1.0) through the cycle.
+        #    We use modulo to make the progress loop.
+        progress = (time_since_start / self.cycle_duration) % 1.0
+
+        # 3. Interpolate to find the current H, S, and V values.
+        current_hue = np.interp(progress, self.positions, self.hues) % 1.0
+        current_sat = np.interp(progress, self.positions, self.sats)
+        current_val = np.interp(progress, self.positions, self.vals)
+
+        # 4. Create the final arrays by filling them with the uniform color.
+        hues = np.full(num_leds, current_hue, dtype=np.float32)
+        sats = np.full(num_leds, current_sat, dtype=np.float32)
+        vals = np.full(num_leds, current_val, dtype=np.float32)
+
+        return hues, sats, vals

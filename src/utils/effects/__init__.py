@@ -1,6 +1,9 @@
 # from .neon_sign_flicker import NeonSignFlicker
+from .breathing import Breathing
 from .chase import Chase
+from .chase_ramp import ChaseRamp
 from .color_source import (
+    ColorShift,
     ColorSource,
     Gradient,
     ScrollingColorSource,
@@ -27,4 +30,7 @@ __all__ = [
     "FlickerRamp",
     "FadeToBlack",
     "FadeIn",
+    "ChaseRamp",
+    "ColorShift",
+    "Breathing",
 ]

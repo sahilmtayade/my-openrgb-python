@@ -7,6 +7,9 @@ from enum import Enum, auto
 from openrgb import OpenRGBClient
 from openrgb.utils import DeviceType, RGBColor
 
+from src.gradients import LIQUID_HSV, RAM_CHASE_BOTTOM_HSV, RAM_CHASE_TOP_HSV
+from src.utils.effects.breathing import Breathing
+
 from .gradients import (
     flame_gradient,
     ocean_bands_gradient,
@@ -18,6 +21,7 @@ from .gradients import (
 from .stage_manager import StageManager
 from .utils.effects import (
     Chase,
+    ChaseRamp,
     Effect,
     FadeIn,
     FadeToBlack,
@@ -26,6 +30,7 @@ from .utils.effects import (
     StaticBrightness,
 )
 from .utils.effects.color_source import (
+    ColorShift,
     Gradient,
     MultiGradient,
     ScrollingColorSource,
@@ -53,17 +58,6 @@ ZONE_CONFIGS = [
     ZoneConfig(index=1, role="fans", name="D_LED2 Top", led_count=24),
 ]
 
-# --- Color palettes in HSV (Hue 0-1, Saturation 0-1, Value 0-1) --- # <-- CHANGED
-STRIMMER_HSV = (18 / 360, 1.0, 1.0)  # Fiery orange at full brightness # <-- CHANGED
-RAM_FAN_START_HSV = (
-    0.0,
-    0.0,
-    1.0,
-)  # White (Hue and Sat don't matter, Value is 1) # <-- CHANGED
-RAM_FAN_END_HSV = (18 / 360, 1.0, 1.0)  # Fiery orange at full brightness # <-- CHANGED
-# --- NEW: Define colors for the idle RAM state ---
-RAM_IDLE_START_HSV = (0.5, 1.0, 1.0)  # Vibrant Cyan
-RAM_IDLE_END_HSV = (0.33, 1.0, 1.0)  # Vibrant Green
 
 FPS = 60
 FRAME_TIME = 1.0 / FPS
@@ -100,19 +94,19 @@ def run():
     blocking_effects: list[Effect] = []
 
     # --- Define Color Sources using the new HSV format ---
-    strimmer_source = StaticColor(hsv=STRIMMER_HSV)  # <-- NOW USES (H,S,V)
+    strimmer_source = StaticColor(hsv=LIQUID_HSV)  # <-- NOW USES (H,S,V)
     ram_gradient = Gradient(
-        start_hsv=RAM_FAN_START_HSV,
-        end_hsv=RAM_FAN_END_HSV,
+        start_hsv=RAM_CHASE_TOP_HSV,
+        end_hsv=RAM_CHASE_BOTTOM_HSV,
         start_pos=0.0,
         end_pos=0.4,
     )  # <-- NOW USES (H,S,V)
 
     # This gradient now defines its own dark and light parts using the 'V' channel.
 
-    fan_scrolling_color = ScrollingColorSource(
-        source=flame_gradient,
-        speed=5.0,
+    fan_scrolling_color = ColorShift(
+        gradient_source=flame_gradient,
+        cycle_duration=20.0,
     )
     # --- NEW: Create the idle RAM gradient source ---
     ram_idle_gradient = tropical_waters_gradient
@@ -132,7 +126,7 @@ def run():
     # --- Kick off the sequence ---
     print(f"[{current_state.name}] Starting...")
     effect = LiquidFill(strimmer, color_source=strimmer_source, speed=5.0)
-    manager.add_effect(effect, strimmer)
+    manager.add_effect(effect)
     blocking_effects.append(effect)
 
     # --- Main Application Loop ---
@@ -153,46 +147,43 @@ def run():
                     manager.add_effect(
                         StaticBrightness(
                             strimmer, color_source=fan_scrolling_color, brightness=1.0
-                        ),
-                        strimmer,
+                        )
                     )
                     chase1 = Chase(
                         dram_sticks[0],
-                        color_source=ram_gradient,
+                        color_source=fan_scrolling_color,
                         speed=20,
                         delay=0.0,
                         width=3,
-                        duration=5,
+                        duration=None,
                         loop_interval=1,
                         reverse=True,
                     )
                     chase2 = Chase(
                         dram_sticks[1],
-                        color_source=ram_gradient,
+                        color_source=fan_scrolling_color,
                         speed=20,
                         delay=RAM_OFFSET,
                         width=3,
-                        duration=5,
+                        duration=None,
                         loop_interval=1,
                         reverse=True,
                     )
-                    # NOTE: Cleaned up the FlickerRamp/StaticBrightness overwrite.
-                    # Using StagedFlickerRamp as it seems to be the intended effect.
-                    # flicker = StagedFlickerRamp(
-                    #     fans,
-                    #     color_source=fan_scrolling_color,
-                    #     total_duration=5,
-                    #     comet_width=3,
-                    # )
-                    manager.add_effect(chase1, dram_sticks[0])
-                    manager.add_effect(chase2, dram_sticks[1])
-                    manager.add_effect(
-                        StaticBrightness(
-                            fans, color_source=fan_scrolling_color, brightness=1.0
-                        ),
+
+                    fan_chase = ChaseRamp(
                         fans,
+                        color_source=fan_scrolling_color,
+                        initial_speed=5,
+                        acceleration=10,
+                        max_speed=120,
+                        dither_strength=0.14,
+                        reverse=True,
                     )
-                    blocking_effects = [chase1, chase2]
+                    manager.add_effect(chase1)
+                    manager.add_effect(chase2)
+                    manager.add_effect(fan_chase)
+                    blocking_effects = [fan_chase]
+                    fan_scrolling_color.reset()
 
                 elif current_state == AppState.STATE_2_MAIN_SHOW:
                     current_state = AppState.STATE_3_FADE_OUT
@@ -223,10 +214,10 @@ def run():
                         color_source=ram_idle_scrolling_color_2,
                         duration=FADE_OUT_DURATION,
                     )
-                    manager.add_effect(fade_strimmer, strimmer)
-                    manager.add_effect(fade_fans, fans)
-                    manager.add_effect(fade_dram1, dram_sticks[0])
-                    manager.add_effect(fade_dram2, dram_sticks[1])
+                    manager.add_effect(fade_strimmer)
+                    manager.add_effect(fade_fans)
+                    manager.add_effect(fade_dram1)
+                    manager.add_effect(fade_dram2)
                     blocking_effects = [
                         fade_strimmer,
                         fade_fans,
@@ -252,8 +243,8 @@ def run():
                         color_source=ram_idle_scrolling_color_2,
                         brightness=1.0,  # duration=None is default for infinite
                     )
-                    manager.add_effect(idle_ram1, dram_sticks[0])
-                    manager.add_effect(idle_ram2, dram_sticks[1])
+                    manager.add_effect(idle_ram1)
+                    manager.add_effect(idle_ram2)
 
                     # --- NEW: Add chase effects for fans and strimmer in idle state ---
                     idle_fan_color = ScrollingColorSource(
@@ -290,8 +281,24 @@ def run():
                         loop_interval=IDLE_CHASE_INTERVAL,  # long loop interval
                         reverse=False,
                     )
-                    manager.add_effect(idle_fan_chase, fans)
-                    manager.add_effect(idle_strimmer_chase, strimmer)
+                    idle_breathing_colors = ScrollingColorSource(
+                        source=ram_idle_gradient,
+                        speed=10.0,
+                        resolution_multiplier=32,
+                        initial_roll_ratio=RAM_OFFSET,
+                    )
+                    idle_breathing_fans = Breathing(
+                        fans,
+                        color_source=idle_breathing_colors,
+                        min_brightness=0,
+                        on_duration=30,
+                        off_duration=90,
+                        speed=5.0,
+                        duration=None,  # Infinite breathing
+                    )
+                    manager.add_effect(idle_fan_chase)
+                    manager.add_effect(idle_strimmer_chase)
+                    manager.add_effect(idle_breathing_fans)
 
                     blocking_effects.extend(
                         [idle_ram1, idle_ram2, idle_fan_chase, idle_strimmer_chase]
