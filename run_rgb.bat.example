@@ -1,48 +1,28 @@
 @echo off
 REM ==========================================================================
 REM  Example startup script for the RGB Controller.
-REM
-REM  INSTRUCTIONS:
-REM  1. RENAME this file from 'run_rgb.bat.example' to 'run_rgb.bat'.
-REM  2. EDIT the 'PYTHON_EXE' variable below to point to YOUR Python installation.
-REM
-REM  This '.bat' file is ignored by Git to protect your personal paths.
 REM ==========================================================================
 
-REM This batch file runs the RGB Controller Python script.
-
-REM Get the directory of this batch file, which should be the project root.
-SET "SCRIPT_DIR=%~dp0"
-
-REM --- !!! IMPORTANT !!! ---
-REM --- EDIT THIS LINE ---
-REM Set this variable to the FULL, ABSOLUTE path of the python.exe you are using
-REM for this project.
-REM To find the path, open a command prompt and type: where python
+REM --- Configuration ---
+SET "MANAGE_SERVER=true"
+SET "OPENRGB_EXE=C:\Path\To\Your\OpenRGB\OpenRGB.exe"
 SET "PYTHON_EXE=C:\Path\To\Your\Python\python.exe"
 
-REM Check if the Python executable path has been set.
-IF "%PYTHON_EXE%"=="C:\Path\To\Your\Python\python.exe" (
-    echo.
-    echo [ERROR] You must edit run_rgb.bat and set the PYTHON_EXE variable.
-    echo         Please point it to your Python installation directory.
-    echo.
-    pause
-    GOTO :EOF
+REM --- Sanity Checks (unchanged) ---
+REM ...
+
+REM --- Execution ---
+IF %MANAGE_SERVER%==true (
+    ECHO Starting OpenRGB Server in the background...
+    START "OpenRGB Server" "%OPENRGB_EXE%" --server
+    
+    REM --- THE CHANGE IS HERE ---
+    REM The 5-second timeout is no longer needed.
+    REM The Python script will now poll for the server itself.
+    REM timeout /t 5 /nobreak > NUL  <-- DELETE THIS LINE
 )
 
-IF NOT EXIST "%PYTHON_EXE%" (
-    echo.
-    echo [ERROR] The Python executable was not found at the specified path:
-    echo %PYTHON_EXE%
-    echo Please check the path in run_rgb.bat.
-    echo.
-    pause
-    GOTO :EOF
-)
-
-
-REM Run the script using the full path to python and the -m flag.
-REM The /B flag can help prevent a new command window from staying open.
 ECHO Starting RGB Controller...
 START "" /B "%PYTHON_EXE%" -m src.main
+
+:EOF
