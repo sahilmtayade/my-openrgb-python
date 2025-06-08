@@ -57,3 +57,4 @@ generated/
 temp/
 .DS_Store
 
+*.bat
