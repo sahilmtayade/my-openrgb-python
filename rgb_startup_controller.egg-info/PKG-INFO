@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: rgb_startup_controller
+Version: 0.1.0
+Requires-Python: >=3.7
+Requires-Dist: openrgb-python
+Requires-Dist: requests
+Requires-Dist: jsonschema
+Requires-Dist: python-dotenv
+Requires-Dist: numpy
+Requires-Dist: colour-science
+Requires-Dist: logger_tt
+Dynamic: requires-dist
+Dynamic: requires-python

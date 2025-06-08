@@ -59,11 +59,11 @@ ZONE_CONFIGS = [
 ]
 
 
-FPS = 60
+FPS = 30
 FRAME_TIME = 1.0 / FPS
 STANDALONE_DEVICES = [DeviceType.DRAM]
 RAM_OFFSET = 0.3
-IDLE_CHASE_INTERVAL = 30  # Time in seconds between idle chases
+IDLE_CHASE_INTERVAL = 15  # Time in seconds between idle chases
 IDLE_CHASE_SPEED = 30.0  # Speed of the idle chase effect
 IDLE_CHASE_DELAY = 5  # Delay before the idle chase starts
 
@@ -176,6 +176,7 @@ def run():
                         initial_speed=5,
                         acceleration=10,
                         max_speed=120,
+                        max_width=100,
                         dither_strength=0.14,
                         reverse=True,
                     )
@@ -293,6 +294,7 @@ def run():
                         min_brightness=0,
                         on_duration=30,
                         off_duration=90,
+                        transition_duration=5,
                         speed=5.0,
                         duration=None,  # Infinite breathing
                     )
