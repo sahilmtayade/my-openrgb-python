@@ -41,6 +41,7 @@ from .utils.openrgb_helper import (
     configure_motherboard_zones,
     configure_standalone_devices,
     connect_with_retry,
+    setup_hardware_with_retry,
 )
 
 
@@ -67,20 +68,29 @@ RAM_OFFSET = 0.3
 IDLE_CHASE_INTERVAL = 15  # Time in seconds between idle chases
 IDLE_CHASE_SPEED = 30.0  # Speed of the idle chase effect
 IDLE_CHASE_DELAY = 5  # Delay before the idle chase starts
+HARDWARE_SETUP_TIMEOUT = 60
+HARDWARE_SETUP_INTERVAL = 1.0  # Seconds between hardware setup attempts
 
 
 def run():
     """Main function to run the lighting controller."""
     try:
-        # Adjust the number of devices as needed
-        client = connect_with_retry(num_devices=3, num_zones=2)
-    except TimeoutError as e:
-        print(f"FATAL: Could not connect to OpenRGB server: {e}")
-        return
-    # --- Device Setup ---
-    try:
-        motherboard_zones = configure_motherboard_zones(client, ZONE_CONFIGS)
-        standalone_devices = configure_standalone_devices(client, STANDALONE_DEVICES)
+        # Part 1: Connect to the Server
+        client = connect_with_retry(
+            num_devices=3,
+            num_zones=2,
+        )
+
+        # Part 2: Configure Hardware (with its own timeout)
+        manager, motherboard_zones, standalone_devices, all_managed_devices = (
+            setup_hardware_with_retry(
+                client=client,
+                timeout=HARDWARE_SETUP_TIMEOUT,
+                interval=HARDWARE_SETUP_INTERVAL,
+                zone_configs=ZONE_CONFIGS,
+                device_types=STANDALONE_DEVICES,
+            )
+        )
         strimmer = motherboard_zones.get("strimmer")
         fans = motherboard_zones.get("fans")
         dram_sticks = [dev for dev in standalone_devices if dev.type == DeviceType.DRAM]
@@ -89,10 +99,11 @@ def run():
             print("FATAL: One or more essential devices not found. Exiting.")
             return
 
-        all_managed_devices = list(motherboard_zones.values()) + standalone_devices
-        manager = StageManager(all_managed_devices)
+    except TimeoutError as e:
+        print(f"FATAL: A startup step timed out: {e}")
+        return
     except Exception as e:
-        print(f"FATAL: Could not initialize hardware: {e}")
+        print(f"FATAL: An unexpected error occurred during startup: {e}")
         return
 
     current_state = AppState.STATE_1_LIQUID

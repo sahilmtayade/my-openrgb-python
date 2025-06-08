@@ -6,6 +6,8 @@ from openrgb import OpenRGBClient
 from openrgb.orgb import Device, Zone
 from openrgb.utils import DeviceType
 
+from src.stage_manager import StageManager
+
 from .debug_utils import debug_print
 
 
@@ -167,3 +169,62 @@ def connect_with_retry(
 
     # If the loop finishes without returning, we have timed out.
     raise TimeoutError(f"Could not connect to OpenRGB server within {timeout} seconds.")
+
+
+def setup_hardware_with_retry(
+    client: OpenRGBClient,
+    timeout: float,
+    interval: float,
+    zone_configs: list[ZoneConfig],
+    device_types: list[DeviceType],
+) -> tuple[StageManager, dict[str, Device], list[Device], list[Device]]:
+    """
+    Configures all required hardware, retrying until success or timeout.
+    """
+    start_time = time.monotonic()
+    print("\n--- Starting Hardware Configuration ---")
+
+    while time.monotonic() - start_time < timeout:
+        try:
+            # 1. Attempt to configure all devices.
+            motherboard_zones = configure_motherboard_zones(client, zone_configs)
+            standalone_devices = configure_standalone_devices(client, device_types)
+
+            # 2. Verify that all essential devices were found and configured.
+            strimmer = motherboard_zones.get("strimmer")
+            fans = motherboard_zones.get("fans")
+            dram_sticks = [
+                dev for dev in standalone_devices if dev.type == DeviceType.DRAM
+            ]
+
+            if strimmer and fans and dram_sticks:
+                # 3. If everything succeeded, we are done.
+                print("--- Hardware Configuration Successful ---")
+                all_managed_devices = (
+                    list(motherboard_zones.values()) + standalone_devices
+                )
+                manager = StageManager(all_managed_devices)
+                return (
+                    manager,
+                    motherboard_zones,
+                    standalone_devices,
+                    all_managed_devices,
+                )  # type: ignore
+            else:
+                # Some devices were missing after configuration. Log and retry.
+                print(
+                    "! Post-configuration check failed: Not all essential devices were found."
+                )
+
+        except Exception as e:
+            # Catch any exception during setup, including OpenRGBDisconnected.
+            print(f"! HARDWARE SETUP FAILED during attempt: {e}")
+
+        # Wait before the next full attempt.
+        print(f"  Will retry in {interval} seconds...")
+        time.sleep(interval)
+
+    # If the loop finishes, we have timed out.
+    raise TimeoutError(
+        f"Could not successfully configure all hardware within {timeout} seconds."
+    )
