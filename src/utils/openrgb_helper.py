@@ -1,4 +1,5 @@
 import time
+import traceback
 from dataclasses import dataclass
 
 from openrgb import OpenRGBClient
@@ -45,7 +46,9 @@ def configure_motherboard_zones(
         # Use a dictionary comprehension for a concise return.
         return {zc.role: motherboard.zones[zc.index] for zc in zone_configs}
     except Exception as e:
-        print(f"! ERROR: Could not configure motherboard zones: {e}")
+        print(
+            f"! ERROR: Could not configure motherboard zones: {e} {traceback.format_exc()}"
+        )
         return {}
 
 
@@ -70,7 +73,9 @@ def configure_standalone_devices(
             configured_devices.extend(devices)
             print(f"{len(devices)} device(s) of type '{dev_type.name}' configured.")
         except Exception as e:
-            print(f"! ERROR: Could not configure device type '{dev_type.name}': {e}")
+            print(
+                f"! ERROR: Could not configure device type '{dev_type.name}': {e} {traceback.format_exc()}"
+            )
 
     return configured_devices
 
