@@ -41,7 +41,7 @@ def configure_motherboard_zones(
         motherboard = client.get_devices_by_type(DeviceType.MOTHERBOARD)[0]
         motherboard.set_mode("direct")
         resize_argb_zones(motherboard, zone_configs)
-        print(f"✓ Motherboard '{motherboard.name}' configured.")
+        print(f"Motherboard '{motherboard.name}' configured.")
         # Use a dictionary comprehension for a concise return.
         return {zc.role: motherboard.zones[zc.index] for zc in zone_configs}
     except Exception as e:
@@ -68,7 +68,7 @@ def configure_standalone_devices(
             for dev in devices:
                 dev.set_mode("direct")
             configured_devices.extend(devices)
-            print(f"✓ {len(devices)} device(s) of type '{dev_type.name}' configured.")
+            print(f"{len(devices)} device(s) of type '{dev_type.name}' configured.")
         except Exception as e:
             print(f"! ERROR: Could not configure device type '{dev_type.name}': {e}")
 
