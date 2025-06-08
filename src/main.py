@@ -95,12 +95,12 @@ def run():
 
     # --- Define Color Sources using the new HSV format ---
     strimmer_source = StaticColor(hsv=LIQUID_HSV)  # <-- NOW USES (H,S,V)
-    ram_gradient = Gradient(
-        start_hsv=RAM_CHASE_TOP_HSV,
-        end_hsv=RAM_CHASE_BOTTOM_HSV,
-        start_pos=0.0,
-        end_pos=0.4,
-    )  # <-- NOW USES (H,S,V)
+    # ram_gradient = Gradient(
+    #     start_hsv=RAM_CHASE_TOP_HSV,
+    #     end_hsv=RAM_CHASE_BOTTOM_HSV,
+    #     start_pos=0.0,
+    #     end_pos=0.4,
+    # )  # <-- NOW USES (H,S,V)
 
     # This gradient now defines its own dark and light parts using the 'V' channel.
 
