@@ -165,6 +165,7 @@ def connect_with_retry(
                 print("  - Connected, but no devices found yet. Waiting...")
         except Exception:
             # Server is not ready yet, wait for the interval and try again.
+            print("waiting for OpenRGB server to start...")
             time.sleep(interval)
 
     # If the loop finishes without returning, we have timed out.
