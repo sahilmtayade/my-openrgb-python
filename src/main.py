@@ -72,7 +72,8 @@ IDLE_CHASE_DELAY = 5  # Delay before the idle chase starts
 def run():
     """Main function to run the lighting controller."""
     try:
-        client = connect_with_retry()
+        # Adjust the number of devices as needed
+        client = connect_with_retry(num_devices=4)
     except TimeoutError as e:
         print(f"FATAL: Could not connect to OpenRGB server: {e}")
         return

@@ -110,7 +110,9 @@ SERVER_POLL_INTERVAL = 0.2  # Seconds between connection attempts
 
 # --- NEW: Connection Polling Function ---
 def connect_with_retry(
-    timeout: float = SERVER_POLL_TIMEOUT, interval: float = SERVER_POLL_INTERVAL
+    num_devices: int,
+    timeout: float = SERVER_POLL_TIMEOUT,
+    interval: float = SERVER_POLL_INTERVAL,
 ) -> OpenRGBClient:
     """
     Attempts to connect to the OpenRGB server, retrying until the timeout.
@@ -134,7 +136,7 @@ def connect_with_retry(
             print("Successfully connected to OpenRGB server.")
             # Step 2: Check if devices have been detected
             devices = client.devices
-            if devices:
+            if devices and len(devices) == num_devices:
                 print(f"  - Success! Detected {len(devices)} devices.")
                 return client
             else:
