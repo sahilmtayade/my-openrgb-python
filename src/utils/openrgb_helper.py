@@ -136,9 +136,14 @@ def connect_with_retry(
             print("Successfully connected to OpenRGB server.")
             # Step 2: Check if devices have been detected
             devices = client.devices
-            if devices and len(devices) == num_devices:
-                print(f"  - Success! Detected {len(devices)} devices.")
-                return client
+            if devices:
+                if len(devices) == num_devices:
+                    print(f"  - Success! Detected {len(devices)} devices.")
+                    return client
+                else:
+                    print(
+                        f"  - Connected, but found {len(devices)} devices (expected {num_devices}). {devices=}"
+                    )
             else:
                 # Connected, but no devices yet. Server is still initializing.
                 print("  - Connected, but no devices found yet. Waiting...")
