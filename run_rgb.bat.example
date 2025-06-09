@@ -1,93 +1,54 @@
 @echo off
 REM ==========================================================================
-REM  Example Startup Script for the RGB Controller
+REM  Final Startup Script for the RGB Controller
 REM
-REM  This script can automatically start the OpenRGB server and then launch
-REM  the Python lighting controller. The Python script will actively wait for
-REM  the server to be ready, ensuring the fastest possible startup.
+REM  This script is designed to be run by the Windows Task Scheduler.
+REM  It assumes that the OpenRGB SDK Server is already running or is being
+REM  started by a separate process/task.
 REM
 REM  --- INSTRUCTIONS ---
 REM  1. RENAME this file from 'run_rgb.bat.example' to 'run_rgb.bat'.
-REM  2. EDIT the configuration variables in the section below to match your
-REM     system's file paths.
+REM  2. EDIT the PYTHON_EXE variable below to match your system path.
 REM
-REM  This '.bat' file should be added to your .gitignore to protect your
-REM  personal paths.
+REM  This '.bat' file should be added to your .gitignore.
 REM ==========================================================================
 
 REM ##########################################################################
 REM #                        CONFIGURATION                                   #
 REM ##########################################################################
 
-REM Set to "true" to have this script automatically start the OpenRGB server.
-REM Set to "false" if you already have OpenRGB running as a service or on startup.
-SET "MANAGE_SERVER=true"
-
-REM --- !!! IMPORTANT: EDIT THESE PATHS !!! ---
-
-REM Set this to the FULL, ABSOLUTE path of your OpenRGB.exe
-REM Default is usually in "C:\Program Files\OpenRGB"
-SET "OPENRGB_EXE=C:\Program Files\OpenRGB\OpenRGB.exe"
-
+REM --- !!! IMPORTANT: EDIT THIS PATH !!! ---
 REM Set this to the FULL, ABSOLUTE path of your project's python.exe
 REM To find this, open a command prompt and type: where python
-SET "PYTHON_EXE=C:\Users\YourUser\AppData\Local\Programs\Python\Python311\python.exe"
+SET "PYTHON_EXE=C:\Users\Sahil\Miniconda3\envs\open-rgb\python.exe"
 
 
 REM ##########################################################################
-REM #                        EXECUTION LOGIC (DO NOT EDIT)                     #
+REM #                        EXECUTION LOGIC                                 #
 REM ##########################################################################
 
-REM --- Sanity Checks ---
-IF "%MANAGE_SERVER%"=="true" (
-    IF "%OPENRGB_EXE%"=="C:\Program Files\OpenRGB\OpenRGB.exe" (
-        echo.
-        echo [ERROR] MANAGE_SERVER is true, but OPENRGB_EXE is set to the default path.
-        echo         Please edit run_rgb.bat and verify the path to your OpenRGB.exe.
-        echo.
-        pause
-        GOTO :EOF
-    )
-    IF NOT EXIST "%OPENRGB_EXE%" (
-        echo.
-        echo [ERROR] OpenRGB.exe not found at the specified path:
-        echo %OPENRGB_EXE%
-        echo Please check the path in run_rgb.bat.
-        echo.
-        pause
-        GOTO :EOF
-    )
-)
+REM --- Set the working directory to the location of this script ---
+SET "PROJECT_DIR=%~dp0"
+cd /d "%PROJECT_DIR%"
 
-IF "%PYTHON_EXE%"=="C:\Users\YourUser\AppData\Local\Programs\Python\Python311\python.exe" (
-    echo.
-    echo [ERROR] You must edit run_rgb.bat and set the PYTHON_EXE variable to your real path.
-    echo.
-    pause
-    GOTO :EOF
-)
+REM --- Sanity Check ---
 IF NOT EXIST "%PYTHON_EXE%" (
-    echo.
-    echo [ERROR] Python.exe not found at the specified path:
-    echo %PYTHON_EXE%
-    echo Please check the path in run_rgb.bat.
-    echo.
+    REM This error won't be visible on boot, but is useful for manual testing.
+    echo [FATAL] Python.exe not found at the specified path: %PYTHON_EXE%
     pause
-    G.OTO :EOF
+    EXIT /B 1
 )
-
 
 REM --- Main Execution ---
 
-REM Start the OpenRGB Server if configured to do so.
-IF %MANAGE_SERVER%==true (
-    ECHO Starting OpenRGB Server in the background...
-    REM The START command runs OpenRGB in a new process without blocking.
-    START "OpenRGB Server" /B "%OPENRGB_EXE%" --server
-)
+REM Set the environment variable to force UTF-8 encoding.
+REM This prevents 'charmap' codec errors in the non-interactive session.
+SET PYTHONIOENCODING=utf-8
 
-ECHO Starting RGB Controller...
-REM Run the Python script. The script itself will wait for the server to be ready.
-START "RGB Controller" /B "%PYTHON_EXE%" -m src.main
+REM Run the Python script directly. The script's internal logic will handle
+REM waiting for the OpenRGB server to become available.
+REM The '-u' flag ensures unbuffered output for reliable logging if needed.
+"%PYTHON_EXE%" -u -m src.main
 
-:EOF
+REM The script will block on the line above until the Python process terminates.
+EXIT /B 0
